@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Frontend - Posture Monitor
 
-## Getting Started
+## Features Implemented
 
-First, run the development server:
+✅ **Session Management**
+- Start/stop monitoring sessions
+- Real-time session duration tracking
+- Automatic active session detection
+
+✅ **Statistics Display**
+- Live session statistics
+- Posture breakdown visualization
+- Auto-refresh every 5 seconds
+
+✅ **API Integration**
+- Full API client library
+- TypeScript type definitions
+- Error handling
+
+## Components
+
+### `SessionControl`
+- Start/stop session buttons
+- Session status display
+- Duration counter
+
+### `SessionStats`
+- Real-time statistics
+- Posture breakdown with progress bars
+- Color-coded status indicators
+
+## Running the Frontend
 
 ```bash
+cd frontend
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit: http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create `.env.local`:
+```
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
 
-## Learn More
+## Testing the Integration
 
-To learn more about Next.js, take a look at the following resources:
+1. **Start the backend**:
+   ```bash
+   cd backend
+   uvicorn app.main:app --reload
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+2. **Start the frontend**:
+   ```bash
+   cd frontend
+   npm run dev
+   ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+3. **Test the flow**:
+   - Click "Start Monitoring"
+   - Session should start and show ID
+   - Stats will show "No posture data yet" (MediaPipe coming next!)
+   - Click "Stop Monitoring" to end session
 
-## Deploy on Vercel
+## Next Steps
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [ ] Add MediaPipe camera integration
+- [ ] Real-time posture detection
+- [ ] Desktop notifications
+- [ ] Historical data charts
