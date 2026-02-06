@@ -54,14 +54,36 @@ pip install -r requirements.txt
 
 ```bash
 cp .env.example .env
-# Edit .env with your configuration
+# Edit .env if needed (default values work for local development)
 ```
 
-3. **Run development servers**
+3. **Start database services with Podman**
+
+```bash
+# Start PostgreSQL and Redis
+podman-compose up -d
+
+# Check if services are running
+podman-compose ps
+
+# View logs (optional)
+podman-compose logs -f
+```
+
+4. **Initialize the database**
+
+```bash
+cd backend
+source venv/bin/activate  # If not already activated
+python setup_db.py
+```
+
+5. **Run development servers**
 
 ```bash
 # Terminal 1 - Backend
 cd backend
+source venv/bin/activate
 uvicorn app.main:app --reload --port 8000
 
 # Terminal 2 - Frontend
@@ -69,16 +91,20 @@ cd frontend
 npm run dev
 ```
 
-4. **Access the application**
+6. **Access the application**
 
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:8000
 - API Docs: http://localhost:8000/docs
 
+## Podman Commands
+
+See [PODMAN.md](PODMAN.md) for detailed Podman commands and troubleshooting.
+
 ## Development Roadmap
 
 - [x] Phase 1: Basic project setup
-- [ ] Phase 2: Database and models
+- [x] Phase 2: Database and models
 - [ ] Phase 3: Posture detection with MediaPipe
 - [ ] Phase 4: Real-time monitoring
 - [ ] Phase 5: Analytics and reports
@@ -87,3 +113,4 @@ npm run dev
 ## License
 
 MIT
+
