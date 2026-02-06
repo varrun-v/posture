@@ -43,6 +43,12 @@ export const api = {
         return res.json();
     },
 
+    getSessionHistory: async (userId: number = DEFAULT_USER_ID) => {
+        const res = await fetch(`${API_V1}/sessions/user/${userId}`);
+        if (!res.ok) throw new Error('Failed to fetch session history');
+        return res.json();
+    },
+
     // Posture
     logPosture: async (data: {
         session_id: number;

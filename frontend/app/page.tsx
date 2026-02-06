@@ -4,10 +4,13 @@ import { useState, useEffect } from 'react';
 import { SessionControl } from '@/components/SessionControl';
 import { SessionStatsDisplay } from '@/components/SessionStats';
 import { CameraView } from '@/components/CameraView';
+import { HistoryList } from '@/components/HistoryList';
 import { api } from '@/lib/api';
 
 export default function Home() {
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
+  const [viewSessionId, setViewSessionId] = useState<number | null>(null);
+  const [historyRefresh, setHistoryRefresh] = useState(0);
 
   useEffect(() => {
     // Check for active session on mount
@@ -16,6 +19,7 @@ export default function Home() {
         const session = await api.getActiveSession();
         if (session) {
           setActiveSessionId(session.id);
+          setViewSessionId(session.id); // Auto-view active session
         }
       } catch (err) {
         console.error('Failed to check active session:', err);
@@ -28,6 +32,15 @@ export default function Home() {
     const interval = setInterval(checkSession, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  // Use this wrapper to update both active state and view
+  const handleSessionChange = (id: number | null) => {
+    setActiveSessionId(id);
+    if (id) {
+      setViewSessionId(id);
+    }
+    setHistoryRefresh(prev => prev + 1); // Refresh history list
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
@@ -45,7 +58,7 @@ export default function Home() {
         {/* Main Grid */}
         <div className="grid md:grid-cols-2 gap-6 max-w-6xl mx-auto mb-6">
           {/* Session Control */}
-          <SessionControl onSessionChange={setActiveSessionId} />
+          <SessionControl onSessionChange={handleSessionChange} />
 
           {/* Camera View */}
           <CameraView sessionId={activeSessionId} />
@@ -53,7 +66,21 @@ export default function Home() {
 
         {/* Stats */}
         <div className="max-w-6xl mx-auto mb-6">
-          <SessionStatsDisplay sessionId={activeSessionId} />
+          <div className="mb-2 flex justify-between items-end">
+            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">
+              {activeSessionId === viewSessionId ? 'Live Stats' : 'Viewing Past Session Data'}
+            </h3>
+          </div>
+          {/* Show stats for EITHER active session OR selected history item */}
+          <SessionStatsDisplay sessionId={viewSessionId} />
+        </div>
+
+        {/* History */}
+        <div className="max-w-6xl mx-auto mb-6">
+          <HistoryList
+            onSelectSession={(id) => setViewSessionId(id)}
+            refreshTrigger={historyRefresh}
+          />
         </div>
 
         {/* Status Section */}
