@@ -154,24 +154,37 @@ class PostureDetector:
         # Determine posture status
         posture_status = self._classify_posture(neck_angle, torso_angle, distance_score)
         
+        # Extract landmarks for skeleton visualization (normalized coordinates)
+        # We only need a subset for the basic skeleton
+        skeleton_landmarks = {}
+        relevant_indices = [0, 7, 8, 11, 12, 23, 24] # nose, ears, shoulders, hips
+        for idx in relevant_indices:
+            skeleton_landmarks[str(idx)] = {
+                'x': float(landmarks[idx].x),
+                'y': float(landmarks[idx].y),
+                'presence': float(landmarks[idx].presence)
+            }
+        
         return {
             'posture_status': posture_status,
             'neck_angle': float(180 - neck_angle),
             'torso_angle': float(abs(90 - torso_angle)),
             'distance_score': float(distance_score),
             'confidence': float(confidence),
-            'shoulder_width': float(shoulder_width)
+            'shoulder_width': float(shoulder_width),
+            'landmarks': skeleton_landmarks
         }
     
     def _classify_posture(self, neck_angle: float, torso_angle: float, distance_score: float) -> str:
         """Classify posture based on angles and distance."""
-        if distance_score > 1.3:
+        # More relaxed thresholds for accuracy
+        if distance_score > 1.4: # Was 1.3
             return 'TOO_CLOSE'
         
-        if neck_angle < 160:
+        if neck_angle < 155: # Was 160
             return 'SLOUCHING'
         
-        if torso_angle < 75:
+        if torso_angle < 70: # Was 75
             return 'SLOUCHING'
         
         return 'GOOD'
