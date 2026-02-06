@@ -5,6 +5,10 @@ websockets
 # Reporting
 matplotlib
 jinja2
+
+# Image Processing (Evidence Locker)
+opencv-python-headless
+numpy
 psycopg2-binary
 pydantic
 pydantic-settings

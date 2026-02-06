@@ -28,6 +28,28 @@ class User(UserBase):
         from_attributes = True
 
 
+# User Settings Schemas
+class UserSettingsBase(BaseModel):
+    blur_screenshots: bool = True
+    enabled_evidence_locker: bool = True
+    report_frequency: int = 1
+
+
+class UserSettingsUpdate(BaseModel):
+    blur_screenshots: Optional[bool] = None
+    enabled_evidence_locker: Optional[bool] = None
+    report_frequency: Optional[int] = None
+
+
+class UserSettings(UserSettingsBase):
+    id: int
+    user_id: int
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
 
 # Session Schemas
 class SessionBase(BaseModel):

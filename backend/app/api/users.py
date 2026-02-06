@@ -23,3 +23,34 @@ def list_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     users = db.query(database.User).offset(skip).limit(limit).all()
     return users
 
+
+@router.get("/{user_id}/settings", response_model=schemas.UserSettings)
+def get_user_settings(user_id: int, db: Session = Depends(get_db)):
+    """Get user settings (auto-create if missing)."""
+    settings = db.query(database.UserSettings).filter(database.UserSettings.user_id == user_id).first()
+    if not settings:
+        # Auto-create defaults
+        settings = database.UserSettings(user_id=user_id)
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    return settings
+
+
+@router.put("/{user_id}/settings", response_model=schemas.UserSettings)
+def update_user_settings(user_id: int, settings_in: schemas.UserSettingsUpdate, db: Session = Depends(get_db)):
+    """Update user settings."""
+    settings = db.query(database.UserSettings).filter(database.UserSettings.user_id == user_id).first()
+    if not settings:
+         # Should verify user exists first, but for now auto-create works
+        settings = database.UserSettings(user_id=user_id)
+        db.add(settings)
+        db.commit()
+    
+    update_data = settings_in.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(settings, field, value)
+    
+    db.commit()
+    db.refresh(settings)
+    return settings

@@ -20,6 +20,7 @@ class User(Base):
     # Relationships
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
     daily_reports = relationship("DailyReport", back_populates="user", cascade="all, delete-orphan")
+    settings = relationship("UserSettings", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
 
 class Session(Base):
@@ -118,3 +119,30 @@ class DailyReport(Base):
     
     # Relationships
     user = relationship("User", back_populates="daily_reports")
+
+
+class UserSettings(Base):
+    """User configuration for Enterprise features."""
+    
+    __tablename__ = "user_settings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    
+    # Evidence Locker
+    blur_screenshots = Column(Boolean, default=True)  # Privacy First
+    enabled_evidence_locker = Column(Boolean, default=True)
+    
+    # Reporting
+    report_frequency = Column(Integer, default=1)  # 1, 2, or 3 times daily
+    last_report_sent_at = Column(DateTime, nullable=True)
+    
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", back_populates="settings")
+
+# Update User model to include settings relationship (monkey-patching or manual update required)
+# Ideally I would update the User class above, but to avoid replacing the whole file I'll rely on SQLAlchemy's registry 
+# or I can update the User class in a separate edit if needed. 
+

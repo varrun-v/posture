@@ -52,6 +52,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app:z
+      - evidence_data:/app/data
 
   celery-worker:
     build: ./backend
@@ -69,6 +70,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app:z
+      - evidence_data:/app/data
 
   celery-beat:
     build: ./backend
@@ -86,6 +88,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app:z
+      - evidence_data:/app/data
 
   frontend:
     build: ./frontend
@@ -105,4 +108,6 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  evidence_data:
     driver: local
