@@ -10,17 +10,61 @@ export function CameraView({ sessionId }: CameraViewProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
 
   const [cameraActive, setCameraActive] = useState(false);
   const [currentPosture, setCurrentPosture] = useState<string>('WAITING');
   const [error, setError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
-  // Start camera on mount
+  // Start camera and WebSocket on mount
   useEffect(() => {
     startCamera();
-    return () => stopCamera();
+    connectWebSocket();
+    return () => {
+      stopCamera();
+      if (wsRef.current) wsRef.current.close();
+    };
   }, []);
+
+  // WebSocket Connection
+  const connectWebSocket = () => {
+    try {
+      const ws = new WebSocket('ws://localhost:8000/ws');
+
+      ws.onopen = () => console.log('✅ WebSocket Connected');
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          if (data.type === 'NOTIFICATION') {
+            // Handle Alerts (Slouching > 20s)
+            setAlertMessage(data.message);
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => setAlertMessage(null), 5000);
+            return;
+          }
+
+          if (data.posture_status) {
+            // Handle Posture Updates
+            setCurrentPosture(data.posture_status);
+            if (data.landmarks && canvasRef.current) {
+              drawSkeleton(data.landmarks, data.posture_status);
+            }
+          }
+        } catch (e) {
+          console.error("WS Parse Error", e);
+        }
+      };
+
+      ws.onclose = () => console.log('❌ WebSocket Disconnected');
+      wsRef.current = ws;
+    } catch (e) {
+      console.error('WebSocket connection failed', e);
+    }
+  };
 
   // Start/stop analysis based on session
   useEffect(() => {
@@ -36,22 +80,16 @@ export function CameraView({ sessionId }: CameraViewProps) {
 
   const startCamera = async () => {
     try {
-      console.log('Requesting camera access...');
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
       });
 
-      console.log('Camera stream obtained - active:', stream.active);
-
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        // Set active immediately
         setCameraActive(true);
         setError(null);
-        console.log('Camera set to active');
       }
     } catch (err: any) {
-      console.error('Camera error:', err);
       setError(`Camera error: ${err.message}`);
       setCameraActive(false);
     }
@@ -88,28 +126,20 @@ export function CameraView({ sessionId }: CameraViewProps) {
     const frame = captureFrame();
     if (!frame) return;
 
-    setAnalyzing(true);
+    // Don't set analyzing=true here to block because we want continuous stream
+    // and the response is instant (202 Accepted)
+
     try {
-      const response = await fetch('http://localhost:8000/api/v1/posture/analyze-frame', {
+      // Fire and forget (Async Mode)
+      await fetch('http://localhost:8000/api/v1/posture/analyze-frame', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: sessionId, frame })
       });
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Posture:', result.posture_status);
-        setCurrentPosture(result.posture_status);
-
-        // Draw skeleton if landmarks are present
-        if (result.landmarks && canvasRef.current && videoRef.current) {
-          drawSkeleton(result.landmarks, result.posture_status);
-        }
-      }
+      // We don't wait for result here anymore. 
+      // Result comes via WebSocket.
     } catch (err) {
       console.error('Analysis error:', err);
-    } finally {
-      setAnalyzing(false);
     }
   };
 
@@ -120,18 +150,14 @@ export function CameraView({ sessionId }: CameraViewProps) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear previous drawing
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Set line style based on status
     const color = status === 'GOOD' ? '#22c55e' : (status === 'SLOUCHING' ? '#eab308' : '#ef4444');
     ctx.strokeStyle = color;
     ctx.lineWidth = 4;
     ctx.lineCap = 'round';
 
     const points = landmarks;
-
-    // Helper to get point coordinates
     const getPoint = (idx: string) => {
       if (points[idx] && points[idx].presence > 0.5) {
         return { x: points[idx].x * canvas.width, y: points[idx].y * canvas.height };
@@ -139,7 +165,6 @@ export function CameraView({ sessionId }: CameraViewProps) {
       return null;
     };
 
-    // Calculate midpoints (matching backend logic)
     const leftShoulder = getPoint('11');
     const rightShoulder = getPoint('12');
     const leftHip = getPoint('23');
@@ -156,25 +181,25 @@ export function CameraView({ sessionId }: CameraViewProps) {
         y: (leftHip.y + rightHip.y) / 2
       };
 
-      // Draw Spine (Shoulder Mid -> Hip Mid)
+      // Spine
       ctx.beginPath();
       ctx.moveTo(shoulderMid.x, shoulderMid.y);
       ctx.lineTo(hipMid.x, hipMid.y);
       ctx.stroke();
 
-      // Draw Shoulders line
+      // Shoulders
       ctx.beginPath();
       ctx.moveTo(leftShoulder.x, leftShoulder.y);
       ctx.lineTo(rightShoulder.x, rightShoulder.y);
       ctx.stroke();
 
-      // Draw Hips line
+      // Hips
       ctx.beginPath();
       ctx.moveTo(leftHip.x, leftHip.y);
       ctx.lineTo(rightHip.x, rightHip.y);
       ctx.stroke();
 
-      // Draw Neck (Left Ear -> Shoulder Mid)
+      // Neck
       if (leftEar) {
         ctx.beginPath();
         ctx.moveTo(leftEar.x, leftEar.y);
@@ -182,27 +207,12 @@ export function CameraView({ sessionId }: CameraViewProps) {
         ctx.stroke();
       }
     }
-
-    // Draw landmark points
-    ctx.fillStyle = 'white';
-    Object.keys(points).forEach(key => {
-      const p = getPoint(key);
-      if (p) {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 5, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.strokeStyle = 'black';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
-    });
   };
 
   const startAnalysis = () => {
-    stopAnalysis();
-    console.log('Starting analysis');
-    setTimeout(() => analyzeFrame(), 1000);
-    intervalRef.current = setInterval(() => analyzeFrame(), 2000);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    // Send frames more frequently now (async handles it)
+    intervalRef.current = setInterval(() => analyzeFrame(), 500); // 2 FPS
   };
 
   const stopAnalysis = () => {
@@ -252,6 +262,16 @@ export function CameraView({ sessionId }: CameraViewProps) {
         </div>
       )}
 
+      {/* Alert Overlay */}
+      {alertMessage && (
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-bounce">
+          <div className="bg-red-600 text-white px-6 py-4 rounded-full shadow-2xl flex items-center gap-3">
+            <span className="text-2xl">⚠️</span>
+            <span className="font-bold text-lg">{alertMessage}</span>
+          </div>
+        </div>
+      )}
+
       <div className="relative mb-4 bg-black rounded-lg overflow-hidden">
         <video
           ref={videoRef}
@@ -295,7 +315,7 @@ export function CameraView({ sessionId }: CameraViewProps) {
         {sessionId && (
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${analyzing ? 'bg-blue-500 animate-pulse' : 'bg-gray-500'}`}></div>
-            <span>{analyzing ? 'Analyzing...' : 'Ready'}</span>
+            <span>{analyzing ? 'Ready' : 'Analyzing (Async)...'}</span>
           </div>
         )}
       </div>

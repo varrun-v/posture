@@ -17,11 +17,13 @@ class FrameAnalysisRequest(BaseModel):
     frame: str  # base64 encoded image
 
 
-@router.post("/analyze-frame")
+from app.workers.posture_worker import analyze_frame_task
+
+@router.post("/analyze-frame", status_code=202)
 async def analyze_frame(request: FrameAnalysisRequest, db: Session = Depends(get_db)):
     """
-    Analyze a camera frame for posture detection using MediaPipe.
-    Automatically logs the result to the database.
+    Queue a camera frame for async processing.
+    The result will be broadcast via WebSocket.
     """
     # Verify session exists and is active
     session = db.query(database.Session).filter(database.Session.id == request.session_id).first()
@@ -31,28 +33,12 @@ async def analyze_frame(request: FrameAnalysisRequest, db: Session = Depends(get
     if session.status != "active":
         raise HTTPException(status_code=400, detail="Session is not active")
     
-    # Analyze frame with MediaPipe
-    detector = get_detector()
-    result = detector.analyze_posture(request.frame)
-    
-    # Log to database
-    posture_log = database.PostureLog(
-        session_id=request.session_id,
-        timestamp=datetime.utcnow(),
-        posture_status=result['posture_status'],
-        neck_angle=result.get('neck_angle'),
-        torso_angle=result.get('torso_angle'),
-        distance_score=result.get('distance_score'),
-        confidence=result.get('confidence')
-    )
-    db.add(posture_log)
-    db.commit()
-    db.refresh(posture_log)
+    # Offload to Celery Worker
+    task = analyze_frame_task.delay(request.frame, request.session_id)
     
     return {
-        **result,
-        'log_id': posture_log.id,
-        'timestamp': posture_log.timestamp
+        "status": "processing",
+        "task_id": str(task.id)
     }
 
 

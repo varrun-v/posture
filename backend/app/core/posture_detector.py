@@ -19,7 +19,7 @@ class PostureDetector:
     def __init__(self):
         # Path to the pre-trained model
         current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        model_path = os.path.join(current_dir, 'models', 'pose_landmarker_lite.task')
+        model_path = os.path.join(current_dir, 'models', 'pose_landmarker_heavy.task')
         
         if not os.path.exists(model_path):
             print(f"✗ MediaPipe model file not found at {model_path}")
