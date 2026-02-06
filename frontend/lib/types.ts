@@ -62,3 +62,9 @@ export interface CurrentPosture {
     distance_score: number | null;
     confidence: number | null;
 }
+
+export interface UserSettings {
+    blur_screenshots: boolean;
+    enabled_evidence_locker: boolean;
+    report_frequency: number;
+}

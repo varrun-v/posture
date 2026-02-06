@@ -12,6 +12,22 @@ export const api = {
         return res.json();
     },
 
+    getSettings: async (userId: number = DEFAULT_USER_ID) => {
+        const res = await fetch(`${API_V1}/users/${userId}/settings`);
+        if (!res.ok) throw new Error('Failed to fetch settings');
+        return res.json();
+    },
+
+    updateSettings: async (userId: number = DEFAULT_USER_ID, settings: any) => {
+        const res = await fetch(`${API_V1}/users/${userId}/settings`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(settings),
+        });
+        if (!res.ok) throw new Error('Failed to update settings');
+        return res.json();
+    },
+
     // Sessions
     startSession: async (userId: number = DEFAULT_USER_ID) => {
         const res = await fetch(`${API_V1}/sessions/start`, {

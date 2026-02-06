@@ -47,13 +47,11 @@ def analyze_frame_task(self, frame_base64: str, session_id: int):
                 if session:
                     settings = db.query(database.UserSettings).filter(database.UserSettings.user_id == session.user_id).first()
                     
-                    if settings and settings.enabled_evidence_locker:
-                        # Check logic: Save specific frame based on key? 
-                        # For MVP, let's save every 5th random slouch frame to save space
-                        # or better, check if we just triggered an alert
-                        
-                        # Process Image
-                        save_evidence(frame_base64, session_id, result.get('landmarks'), settings.blur_screenshots)
+                    # Always run Evidence Locker (User Request)
+                    blur_enabled = settings.blur_screenshots if settings else True
+                    
+                    # Process Image
+                    save_evidence(frame_base64, session_id, result.get('landmarks'), blur_enabled)
 
         except Exception as db_err:
             print(f"Database/Evidence error: {db_err}")
@@ -112,6 +110,7 @@ def save_evidence(base64_string, session_id, landmarks, blur_enabled):
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
         if img is None:
+            print(f"⚠️ Evidence Locker: Failed to decode image for Session {session_id}")
             return
 
         # Blur Face Logic
@@ -136,6 +135,7 @@ def save_evidence(base64_string, session_id, landmarks, blur_enabled):
             if roi.size > 0:
                 blurred_roi = cv2.GaussianBlur(roi, (51, 51), 0)
                 img[y1:y2, x1:x2] = blurred_roi
+                print(f"🕵️ Evidence Locker: Face blurred for Session {session_id}")
 
         # Save to disk
         timestamp = int(time.time())
@@ -145,6 +145,7 @@ def save_evidence(base64_string, session_id, landmarks, blur_enabled):
         # For demo, only save if not exists
         if not os.path.exists(filename):
              cv2.imwrite(filename, img)
+             print(f"📸 Evidence Locker: Saved {filename}")
              
     except Exception as e:
-        print(f"Evidence locker failed: {e}")
+        print(f"❌ Evidence Locker Failed: {e}")
