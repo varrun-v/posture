@@ -109,26 +109,50 @@ export function SessionStatsDisplay({ sessionId }: SessionStatsProps) {
                 </div>
 
                 <div>
-                    <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
-                        Posture Breakdown
+                    <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
+                        <span>📊</span> Posture Distribution
                     </h3>
-                    <div className="space-y-2">
+                    <div className="space-y-4">
                         {Object.entries(stats.posture_breakdown).map(([status, percentage]) => (
-                            <div key={status}>
-                                <div className="flex justify-between text-sm mb-1">
-                                    <span className="text-gray-700 dark:text-gray-300">{status}</span>
-                                    <span className="font-semibold text-gray-900 dark:text-white">
+                            <div key={status} className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                                        {status === 'GOOD' ? '✅ Good Posture' :
+                                            status === 'SLOUCHING' ? '⚠️ Slouching' :
+                                                status === 'TOO_CLOSE' ? '🚫 Too Close' : status}
+                                    </span>
+                                    <span className="font-bold text-gray-900 dark:text-white">
                                         {percentage.toFixed(1)}%
                                     </span>
                                 </div>
-                                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3 overflow-hidden">
                                     <div
-                                        className={`h-2 rounded-full ${getPostureColor(status)}`}
+                                        className={`h-full transition-all duration-500 rounded-full ${getPostureColor(status)}`}
                                         style={{ width: `${percentage}%` }}
                                     ></div>
                                 </div>
                             </div>
                         ))}
+                    </div>
+                </div>
+
+                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
+                        Insights
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-blue-50 dark:bg-blue-900 p-3 rounded-lg text-center">
+                            <p className="text-xs text-blue-600 dark:text-blue-300 uppercase tracking-wide">Focus Time</p>
+                            <p className="text-xl font-bold text-blue-800 dark:text-blue-100">
+                                {Math.round(stats.duration_minutes)}m
+                            </p>
+                        </div>
+                        <div className="bg-yellow-50 dark:bg-yellow-900 p-3 rounded-lg text-center">
+                            <p className="text-xs text-yellow-600 dark:text-yellow-300 uppercase tracking-wide">Slouch Events</p>
+                            <p className="text-xl font-bold text-yellow-800 dark:text-yellow-100">
+                                {stats.status_counts['SLOUCHING'] || 0}
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
