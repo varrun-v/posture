@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+celery
+redis
+sqlalchemy
+psycopg2-binary
+pydantic
+pydantic-settings
+mediapipe
+opencv-python
+numpy
+websockets
+python-multipart
+alembic
+python-dotenv
