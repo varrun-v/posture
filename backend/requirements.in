@@ -1,8 +1,10 @@
 fastapi
 uvicorn[standard]
-celery
-redis
-sqlalchemy
+celery[redis]
+websockets
+# Reporting
+matplotlib
+jinja2
 psycopg2-binary
 pydantic
 pydantic-settings
