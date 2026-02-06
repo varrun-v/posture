@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.db.session import engine
+from app.api import users, sessions, posture
 
 
 @asynccontextmanager
@@ -24,7 +25,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    description="Real-time posture monitoring and analytics API"
 )
 
 # CORS configuration for Next.js frontend
@@ -36,17 +38,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include API routers
+app.include_router(users.router, prefix=settings.api_v1_prefix)
+app.include_router(sessions.router, prefix=settings.api_v1_prefix)
+app.include_router(posture.router, prefix=settings.api_v1_prefix)
+
 
 @app.get("/")
 async def root():
     return {
         "message": "Posture Monitor API",
         "status": "running",
-        "version": "0.1.0"
+        "version": "0.1.0",
+        "docs": "/docs"
     }
 
 
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
 

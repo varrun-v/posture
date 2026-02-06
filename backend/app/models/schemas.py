@@ -1,11 +1,11 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 
 # User Schemas
 class UserBase(BaseModel):
-    email: EmailStr
+    email: str
     name: Optional[str] = None
 
 
@@ -26,6 +26,7 @@ class User(UserBase):
     
     class Config:
         from_attributes = True
+
 
 
 # Session Schemas

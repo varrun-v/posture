@@ -1,119 +1,151 @@
-# Podman Setup - Complete ✓
+# API Routes - Complete ✓
 
 ## What We Built
 
-### 1. Podman Compose Configuration (`podman-compose.yml`)
-- **PostgreSQL 15** container with:
-  - User: `posture_user`
-  - Password: `posture_pass`
-  - Database: `posture_db`
-  - Port: 5432
-  - Persistent volume for data
-  - Health checks
+### 1. User Management API (`app/api/users.py`)
+**Single-User Mode:**
+- Default user (ID: 1) created automatically during database setup
+- Architecture supports multi-user expansion in the future
 
-- **Redis 7** container with:
-  - Port: 6379
-  - Persistent volume for data
-  - Health checks
+**Endpoints:**
+- `GET /api/v1/users/{user_id}` - Get user by ID
+- `GET /api/v1/users/` - List all users
 
-### 2. Documentation
-- **PODMAN.md**: Complete reference for Podman commands
-  - Starting/stopping services
-  - Viewing logs
-  - Accessing databases
-  - Troubleshooting
+**Design Decision:**
+- Simplified for personal use (single user)
+- Keeps clean architecture for interview demonstration
+- Easy to scale by adding user creation endpoints later
 
-### 3. Quick Start Script (`start-services.sh`)
-- Automated script to start both containers
-- Checks if podman-compose is installed
-- Shows container status
-- Displays connection information
+### 2. Session Management API (`app/api/sessions.py`)
+**Endpoints:**
+- `POST /api/v1/sessions/start` - Start monitoring session
+- `POST /api/v1/sessions/{session_id}/stop` - Stop session
+- `GET /api/v1/sessions/{session_id}` - Get session details
+- `GET /api/v1/sessions/user/{user_id}` - Get user's sessions
+- `GET /api/v1/sessions/user/{user_id}/active` - Get active session
 
-### 4. Updated README
-- Added Podman setup instructions
-- Added database initialization steps
-- Updated development roadmap
+**Features:**
+- Prevents multiple active sessions per user
+- Automatic duration calculation
+- Session status tracking (active/completed/paused)
+- Filtering by status
 
-## How to Use
+### 3. Posture Logging API (`app/api/posture.py`)
+**Endpoints:**
+- `POST /api/v1/posture/log` - Log posture detection
+- `GET /api/v1/posture/session/{session_id}/current` - Current posture status
+- `GET /api/v1/posture/session/{session_id}/history` - Posture history
+- `GET /api/v1/posture/session/{session_id}/stats` - Session statistics
 
-### Start Services
+**Features:**
+- Real-time posture logging
+- Duration tracking in current state
+- Posture breakdown percentages
+- Historical data with pagination
+
+### 4. Updated Main App (`app/main.py`)
+- Integrated all API routers with `/api/v1` prefix
+- Added API description
+- Added `/docs` link in root response
+
+### 5. API Test Script (`test_api.py`)
+Comprehensive test script that:
+- Creates a user
+- Starts a session
+- Logs posture data (GOOD, SLOUCHING)
+- Queries current status and stats
+- Stops the session
+- Verifies all endpoints work
+
+## API Documentation
+
+Once the server is running, visit:
+- **Interactive Docs**: http://localhost:8000/docs
+- **Alternative Docs**: http://localhost:8000/redoc
+
+## How to Test
+
+### Option 1: Run the test script
 ```bash
-# Option 1: Use the quick start script
-./start-services.sh
-
-# Option 2: Manual start
-podman-compose up -d
+cd backend
+source venv/bin/activate
+python test_api.py
 ```
 
-### Check Status
+### Option 2: Use the interactive docs
+1. Start the server: `uvicorn app.main:app --reload`
+2. Open http://localhost:8000/docs
+3. Try out the endpoints interactively
+
+### Option 3: Use curl
 ```bash
-podman-compose ps
+# Create user
+curl -X POST http://localhost:8000/api/v1/users/ \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","name":"Test User"}'
+
+# Start session (use user_id from above)
+curl -X POST http://localhost:8000/api/v1/sessions/start \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":1}'
+
+# Log posture
+curl -X POST http://localhost:8000/api/v1/posture/log \
+  -H "Content-Type: application/json" \
+  -d '{"session_id":1,"posture_status":"GOOD","neck_angle":10.5,"torso_angle":5.2,"distance_score":0.75,"confidence":0.95}'
+
+# Get session stats
+curl http://localhost:8000/api/v1/posture/session/1/stats
 ```
 
-### View Logs
-```bash
-podman-compose logs -f
-```
+## API Endpoints Summary
 
-### Stop Services
-```bash
-podman-compose down
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| **Users** |
+| GET | `/api/v1/users/{id}` | Get user |
+| GET | `/api/v1/users/` | List users |
+| **Sessions** |
+| POST | `/api/v1/sessions/start` | Start session |
+| POST | `/api/v1/sessions/{id}/stop` | Stop session |
+| GET | `/api/v1/sessions/{id}` | Get session |
+| GET | `/api/v1/sessions/user/{id}` | User sessions |
+| GET | `/api/v1/sessions/user/{id}/active` | Active session |
+| **Posture** |
+| POST | `/api/v1/posture/log` | Log posture |
+| GET | `/api/v1/posture/session/{id}/current` | Current status |
+| GET | `/api/v1/posture/session/{id}/history` | History |
+| GET | `/api/v1/posture/session/{id}/stats` | Statistics |
 
-### Access PostgreSQL
-```bash
-# Using podman
-podman exec -it posture_postgres psql -U posture_user -d posture_db
-
-# Using local psql
-psql -h localhost -U posture_user -d posture_db
-```
-
-### Access Redis
-```bash
-podman exec -it posture_redis redis-cli
-```
-
-## Next Steps
-
-1. **Start the containers**:
-   ```bash
-   ./start-services.sh
-   ```
-
-2. **Initialize the database**:
-   ```bash
-   cd backend
-   source venv/bin/activate
-   python setup_db.py
-   ```
-
-3. **Run the backend**:
-   ```bash
-   uvicorn app.main:app --reload
-   ```
-
-4. **Test the connection**:
-   - Visit http://localhost:8000
-   - You should see: `{"message": "Posture Monitor API", "status": "running"}`
-   - Check http://localhost:8000/docs for API documentation
+**Total: 12 endpoints**
 
 ## Files Added
 
-- `podman-compose.yml` - Container orchestration
-- `PODMAN.md` - Command reference
-- `start-services.sh` - Quick start script
-- Updated `README.md` - Setup instructions
+- `app/api/__init__.py`
+- `app/api/users.py` - User CRUD endpoints
+- `app/api/sessions.py` - Session management
+- `app/api/posture.py` - Posture logging & analytics
+- `test_api.py` - API test script
+- Updated `app/main.py` - Integrated routers
 
 ## Ready to Commit! 🎉
 
 **Suggested commit message:**
 ```
-feat: add Podman configuration for PostgreSQL and Redis
+feat: add REST API endpoints for users, sessions, and posture tracking
 
-- Add podman-compose.yml with PostgreSQL 15 and Redis 7
-- Add health checks and persistent volumes
-- Add PODMAN.md with command reference
-- Add start-services.sh quick start script
-- Update README with Podman setup instructions
+- Add user management API (CRUD operations)
+- Add session management API (start/stop/query)
+- Add posture logging API (log/history/stats)
+- Add comprehensive API test script
+- Integrate all routers into main FastAPI app
+- Add interactive API documentation at /docs
 ```
+
+## Next Steps
+
+After this commit, we can work on:
+1. **Frontend integration** - Connect Next.js to these APIs
+2. **MediaPipe integration** - Add actual posture detection
+3. **WebSocket** - Real-time updates
+4. **Celery workers** - Background processing
