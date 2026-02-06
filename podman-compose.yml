@@ -33,6 +33,55 @@ services:
       retries: 5
     restart: unless-stopped
 
+  backend-api:
+    build: ./backend
+    container_name: posture_api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://posture_user:posture_pass@postgres:5432/posture_db
+      REDIS_URL: redis://redis:6379/0
+      POSTGRES_USER: posture_user
+      POSTGRES_PASSWORD: posture_pass
+      POSTGRES_DB: posture_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app:z
+
+  celery-worker:
+    build: ./backend
+    container_name: posture_worker
+    command: celery -A app.core.celery_app worker --loglevel=info
+    environment:
+      DATABASE_URL: postgresql://posture_user:posture_pass@postgres:5432/posture_db
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      backend-api:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app:z
+
+  frontend:
+    build: ./frontend
+    container_name: posture_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      backend-api:
+        condition: service_started
+    volumes:
+      - ./frontend:/app:z
+      - /app/node_modules
+
 volumes:
   postgres_data:
     driver: local

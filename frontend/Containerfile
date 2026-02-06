@@ -1,0 +1,20 @@
+# Use Node.js 18 alpine image
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy application code
+COPY . .
+
+# Expose port (Next.js default)
+EXPOSE 3000
+
+# Start in development mode (as per plan for this phase)
+CMD ["npm", "run", "dev"]

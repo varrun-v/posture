@@ -1,0 +1,31 @@
+# Use Python 3.11 slim image
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies required for OpenCV and MediaPipe
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements file (using .in as user has it, or generate .txt?)
+# The user has requirements.in and a venv. I should check if there is a requirements.txt or just use requirements.in
+# Let's inspect quickly if requirements.txt exists or if I should just pip install components
+# The user ran `pip install -r requirements.in` earlier.
+COPY requirements.in .
+
+# Install Python dependencies
+# We can use pip-tools to compile or just install from .in directly as it's a list
+RUN pip install --no-cache-dir -r requirements.in
+
+# Copy application code
+COPY . .
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+
+# Default command (can be overridden by Compose)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
