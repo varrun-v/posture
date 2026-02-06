@@ -113,29 +113,41 @@ def save_evidence(base64_string, session_id, landmarks, blur_enabled):
             print(f"⚠️ Evidence Locker: Failed to decode image for Session {session_id}")
             return
 
-        # Blur Face Logic
         if blur_enabled and landmarks:
-            # MediaPipe landmarks 0-10 are approximate face area
-            # We'll compute a bounding box
+            # MediaPipe landmarks: 0 (Nose), 7 (Left Ear), 8 (Right Ear)
             h, w, c = img.shape
             
-            # Get Nose (0) and Ears (7, 8) as proxies
-            nose_x = int(landmarks.get('nose', {}).get('x', 0.5) * w)
-            nose_y = int(landmarks.get('nose', {}).get('y', 0.5) * h)
+            # Use '0' for nose (as string per posture_detector.py)
+            nose_lm = landmarks.get('0', {'x': 0.5, 'y': 0.5})
+            ear_l_lm = landmarks.get('7')
+            ear_r_lm = landmarks.get('8')
             
-            # Simple box: 15% of width/height around nose
-            box_size = int(w * 0.15)
-            x1 = max(0, nose_x - box_size)
-            y1 = max(0, nose_y - box_size)
-            x2 = min(w, nose_x + box_size)
-            y2 = min(h, nose_y + box_size)
+            nose_x = int(nose_lm.get('x', 0.5) * w)
+            nose_y = int(nose_lm.get('y', 0.5) * h)
+            
+            # Determine dynamic box size based on ears if available
+            if ear_l_lm and ear_r_lm:
+                ear_l_x = ear_l_lm.get('x', 0.5) * w
+                ear_r_x = ear_r_lm.get('x', 0.5) * w
+                face_width = abs(ear_l_x - ear_r_x) * 2.0  # 2x ear distance
+                box_radius = int(face_width / 2)
+                # Ensure minimum size (10% of width)
+                box_radius = max(box_radius, int(w * 0.1))
+            else:
+                # Fallback: 15% of width
+                box_radius = int(w * 0.15)
+            
+            x1 = max(0, nose_x - box_radius)
+            y1 = max(0, nose_y - box_radius)
+            x2 = min(w, nose_x + box_radius)
+            y2 = min(h, nose_y + box_radius)
             
             # Apply Gaussian Blur to ROI
             roi = img[y1:y2, x1:x2]
             if roi.size > 0:
-                blurred_roi = cv2.GaussianBlur(roi, (51, 51), 0)
+                blurred_roi = cv2.GaussianBlur(roi, (99, 99), 30) # Stronger blur
                 img[y1:y2, x1:x2] = blurred_roi
-                print(f"🕵️ Evidence Locker: Face blurred for Session {session_id}")
+                print(f"🕵️ Evidence Locker: Face blurred for Session {session_id} at ({nose_x}, {nose_y})")
 
         # Save to disk
         timestamp = int(time.time())
