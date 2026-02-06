@@ -60,10 +60,29 @@ services:
     environment:
       DATABASE_URL: postgresql://posture_user:posture_pass@postgres:5432/posture_db
       REDIS_URL: redis://redis:6379/0
+    env_file:
+      - .env
     depends_on:
       backend-api:
         condition: service_started
       redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app:z
+
+  celery-beat:
+    build: ./backend
+    container_name: posture_beat
+    command: celery -A app.core.celery_app beat --loglevel=info
+    environment:
+      DATABASE_URL: postgresql://posture_user:posture_pass@postgres:5432/posture_db
+      REDIS_URL: redis://redis:6379/0
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     volumes:
       - ./backend:/app:z

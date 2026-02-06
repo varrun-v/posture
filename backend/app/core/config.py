@@ -14,6 +14,14 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list[str] = ["*"]
     
+    # SMTP / Email
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    emails_from_email: str | None = "posturemonitor@example.com"
+    emails_to_email: str | None = None  # Default recipient for reports
+    
     # App
     app_name: str = "Posture Monitor API"
     debug: bool = True
