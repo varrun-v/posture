@@ -31,130 +31,168 @@ export function SessionStatsDisplay({ sessionId }: SessionStatsProps) {
         };
 
         fetchStats();
-        const interval = setInterval(fetchStats, 5000); // Update every 5 seconds
+        // Poll less frequently for stats to avoid flickering
+        const interval = setInterval(fetchStats, 5000);
 
         return () => clearInterval(interval);
     }, [sessionId]);
 
-    if (!sessionId) {
-        return (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-                <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
-                    Session Statistics
-                </h2>
-                <p className="text-gray-600 dark:text-gray-400">
-                    Start a session to see statistics
-                </p>
-            </div>
-        );
-    }
+    if (!sessionId) return <EmptyState message="Start a session to see analytics" />;
+    if (loading && !stats) return <EmptyState message="Loading insights..." />;
+    if (!stats || stats.total_logs === 0) return <EmptyState message="No posture data yet. Camera detection starting..." />;
 
-    if (loading && !stats) {
-        return (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-                <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
-                    Session Statistics
-                </h2>
-                <p className="text-gray-600 dark:text-gray-400">Loading...</p>
-            </div>
-        );
-    }
+    const getScoreColor = (score: number = 0) => {
+        if (score >= 80) return 'text-green-600 dark:text-green-400';
+        if (score >= 60) return 'text-yellow-600 dark:text-yellow-400';
+        return 'text-red-600 dark:text-red-400';
+    };
 
-    if (!stats || stats.total_logs === 0) {
-        return (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-                <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
-                    Session Statistics
-                </h2>
-                <p className="text-gray-600 dark:text-gray-400">
-                    No posture data yet. Camera detection coming soon!
-                </p>
-            </div>
-        );
-    }
-
-    const getPostureColor = (status: string) => {
-        switch (status) {
-            case 'GOOD':
-                return 'bg-green-500';
-            case 'SLOUCHING':
-                return 'bg-yellow-500';
-            case 'TOO_CLOSE':
-                return 'bg-red-500';
-            default:
-                return 'bg-gray-500';
-        }
+    const formatDuration = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.round(seconds % 60);
+        return `${mins}m ${secs}s`;
     };
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
-                Session Statistics
-            </h2>
-
-            <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Duration</p>
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                            {Math.round(stats.duration_minutes)} min
-                        </p>
-                    </div>
-                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Data Points</p>
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                            {stats.total_logs}
-                        </p>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 transition-all">
+            {/* Header: Score & Core Metrics */}
+            <div className="flex flex-col md:flex-row gap-6 mb-8 border-b border-gray-100 dark:border-gray-700 pb-6">
+                {/* Hero Score */}
+                <div className="flex-1 flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-750 rounded-2xl">
+                    <span className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Posture Score</span>
+                    <div className="relative flex items-center justify-center mt-2">
+                        <span className={`text-6xl font-bold ${getScoreColor(stats.score)}`}>
+                            {stats.score ?? '-'}
+                        </span>
+                        <span className="text-2xl text-gray-400 ml-1">%</span>
                     </div>
                 </div>
 
-                <div>
-                    <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
-                        <span>📊</span> Posture Distribution
-                    </h3>
-                    <div className="space-y-4">
-                        {Object.entries(stats.posture_breakdown).map(([status, percentage]) => (
-                            <div key={status} className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="font-medium text-gray-700 dark:text-gray-300">
-                                        {status === 'GOOD' ? '✅ Good Posture' :
-                                            status === 'SLOUCHING' ? '⚠️ Slouching' :
-                                                status === 'TOO_CLOSE' ? '🚫 Too Close' : status}
-                                    </span>
-                                    <span className="font-bold text-gray-900 dark:text-white">
-                                        {percentage.toFixed(1)}%
-                                    </span>
-                                </div>
-                                <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3 overflow-hidden">
-                                    <div
-                                        className={`h-full transition-all duration-500 rounded-full ${getPostureColor(status)}`}
-                                        style={{ width: `${percentage}%` }}
-                                    ></div>
-                                </div>
+                {/* Key Metrics Grid */}
+                <div className="flex-[2] grid grid-cols-2 lg:grid-cols-3 gap-4">
+                    <MetricCard
+                        label="Duration"
+                        value={`${Math.round(stats.duration_minutes)} min`}
+                        icon="⏱️"
+                    />
+                    <MetricCard
+                        label="Slouch Time"
+                        value={formatDuration(stats.slouch_metrics?.total_duration_seconds ?? 0)}
+                        icon="📉"
+                        alert={stats.slouch_metrics?.total_duration_seconds ? stats.slouch_metrics.total_duration_seconds > 300 : false}
+                    />
+                    <MetricCard
+                        label="Max Slouch Streak"
+                        value={formatDuration(stats.slouch_metrics?.longest_streak_seconds ?? 0)}
+                        icon="⚠️"
+                    />
+                    <MetricCard
+                        label="Data Points"
+                        value={stats.total_logs.toString()}
+                        icon="📊"
+                    />
+                    <MetricCard
+                        label="Alerts Sent"
+                        value={(stats.status_counts['SLOUCHING'] || 0).toString()}
+                        icon="🔔"
+                    />
+                </div>
+            </div>
+
+            {/* Insight 1: Timeline (When do I mess up?) */}
+            <div className="mb-8">
+                <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-white flex items-center gap-2">
+                    <span>📅</span> Session Timeline
+                </h3>
+                <div className="w-full h-12 flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                    {stats.timeline?.map((point, i) => (
+                        <div
+                            key={i}
+                            className={`flex-1 transition-colors ${point.status === 'GOOD' ? 'bg-green-400' :
+                                    point.status === 'SLOUCHING' ? 'bg-yellow-400' :
+                                        point.status === 'TOO_CLOSE' ? 'bg-red-400' : 'bg-gray-300'
+                                }`}
+                            title={`${new Date(point.time).toLocaleTimeString()} - ${point.status}`}
+                        />
+                    ))}
+                    {(!stats.timeline || stats.timeline.length === 0) && (
+                        <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 text-sm">No timeline data</div>
+                    )}
+                </div>
+                <div className="flex justify-between text-xs text-gray-400 mt-1 px-1">
+                    <span>Start</span>
+                    <span>End</span>
+                </div>
+            </div>
+
+            {/* Insight 2: Deep Insight Grid (Trend & Smart Recs) */}
+            <div className="grid md:grid-cols-2 gap-6">
+                {/* Trend Analysis */}
+                <div className="bg-gray-50 dark:bg-gray-900 p-5 rounded-xl">
+                    <h3 className="text-md font-semibold mb-4 text-gray-800 dark:text-gray-200">📈 Fatigue Trend</h3>
+                    {stats.trend ? (
+                        <div className="flex items-center justify-between">
+                            <div className="text-center">
+                                <p className="text-xs text-gray-500">First 25%</p>
+                                <p className="text-xl font-bold text-gray-700 dark:text-gray-300">{stats.trend.start_score}%</p>
                             </div>
-                        ))}
-                    </div>
+                            <div className="text-2xl text-gray-400">→</div>
+                            <div className="text-center">
+                                <p className="text-xs text-gray-500">Last 25%</p>
+                                <p className="text-xl font-bold text-gray-700 dark:text-gray-300">{stats.trend.end_score}%</p>
+                            </div>
+                            <div className={`px-3 py-1 rounded-full text-sm font-bold ${stats.trend.direction === 'improved' ? 'bg-green-100 text-green-700' :
+                                    stats.trend.direction === 'worsened' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                                }`}>
+                                {stats.trend.direction.toUpperCase()}
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-sm text-gray-500">Not enough data for trend analysis</p>
+                    )}
                 </div>
 
-                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                    <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
-                        Insights
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-blue-50 dark:bg-blue-900 p-3 rounded-lg text-center">
-                            <p className="text-xs text-blue-600 dark:text-blue-300 uppercase tracking-wide">Focus Time</p>
-                            <p className="text-xl font-bold text-blue-800 dark:text-blue-100">
-                                {Math.round(stats.duration_minutes)}m
-                            </p>
-                        </div>
-                        <div className="bg-yellow-50 dark:bg-yellow-900 p-3 rounded-lg text-center">
-                            <p className="text-xs text-yellow-600 dark:text-yellow-300 uppercase tracking-wide">Slouch Events</p>
-                            <p className="text-xl font-bold text-yellow-800 dark:text-yellow-100">
-                                {stats.status_counts['SLOUCHING'] || 0}
-                            </p>
-                        </div>
-                    </div>
+                {/* Smart Recommendations */}
+                <div className="bg-blue-50 dark:bg-blue-900/30 p-5 rounded-xl border border-blue-100 dark:border-blue-800">
+                    <h3 className="text-md font-bold mb-3 text-blue-800 dark:text-blue-300">💡 AI Insights</h3>
+                    {stats.recommendations && stats.recommendations.length > 0 ? (
+                        <ul className="space-y-2">
+                            {stats.recommendations.map((rec, i) => (
+                                <li key={i} className="flex items-start gap-2 text-sm text-blue-700 dark:text-blue-200">
+                                    <span>•</span>
+                                    <span>{rec}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p className="text-sm text-blue-600 dark:text-blue-400 italic">
+                            No specific issues detected. Keep up the good work!
+                        </p>
+                    )}
                 </div>
+            </div>
+        </div>
+    );
+}
+
+// Sub-components
+function EmptyState({ message }: { message: string }) {
+    return (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center">
+            <h2 className="text-xl font-bold mb-2 text-gray-400">Session Analytics</h2>
+            <p className="text-gray-500">{message}</p>
+        </div>
+    );
+}
+
+function MetricCard({ label, value, icon, alert }: { label: string, value: string, icon: string, alert?: boolean }) {
+    return (
+        <div className={`p-3 rounded-lg border ${alert ? 'bg-red-50 border-red-200' : 'bg-white border-gray-100 dark:bg-gray-700 dark:border-gray-600'} shadow-sm`}>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1 flex justify-between">
+                {label} <span>{icon}</span>
+            </div>
+            <div className={`text-lg font-bold ${alert ? 'text-red-700' : 'text-gray-800 dark:text-white'}`}>
+                {value}
             </div>
         </div>
     );

@@ -44,6 +44,12 @@ export interface SessionStats {
         NO_PERSON?: number;
     };
     session_status: string;
+    // Deep Analytics
+    score?: number;
+    timeline?: { time: string; status: string; score: number }[];
+    slouch_metrics?: { total_duration_seconds: number; longest_streak_seconds: number };
+    trend?: { start_score: number; end_score: number; direction: string };
+    recommendations?: string[];
 }
 
 export interface CurrentPosture {
