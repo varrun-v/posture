@@ -35,7 +35,7 @@ export default function Home() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-5xl font-bold text-gray-900 dark:text-white mb-2">
-            Posture Monitor
+            My Workspace Monitor
           </h1>
           <p className="text-xl text-gray-600 dark:text-gray-300">
             Real-time posture tracking for a healthier work life
@@ -56,44 +56,11 @@ export default function Home() {
           <SessionStatsDisplay sessionId={activeSessionId} />
         </div>
 
-        {/* Feature Cards */}
-        <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto mt-8">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-            <div className="text-4xl mb-4">📸</div>
-            <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
-              Real-time Detection
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              Camera-based posture monitoring (coming soon with MediaPipe)
-            </p>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-            <div className="text-4xl mb-4">🔔</div>
-            <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
-              Smart Alerts
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              Get notified when slouching or sitting too long
-            </p>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-            <div className="text-4xl mb-4">📊</div>
-            <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
-              Analytics
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              Track your posture habits over time
-            </p>
-          </div>
-        </div>
-
-        {/* API Status */}
-        <div className="mt-8 text-center">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+        {/* Status Section */}
+        <div className="max-w-6xl mx-auto mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
+          <p>
             API: <span className="text-green-600 font-semibold">Connected</span> •
-            Backend: <a href="http://localhost:8000/docs" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">API Docs</a>
+            System: <span className="text-blue-600 font-semibold">Ready</span>
           </p>
         </div>
       </main>

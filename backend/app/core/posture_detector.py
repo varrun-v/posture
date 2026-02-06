@@ -177,14 +177,26 @@ class PostureDetector:
     
     def _classify_posture(self, neck_angle: float, torso_angle: float, distance_score: float) -> str:
         """Classify posture based on angles and distance."""
-        # More relaxed thresholds for accuracy
-        if distance_score > 1.4: # Was 1.3
+        # Check distance first
+        if distance_score > 1.4:
             return 'TOO_CLOSE'
         
-        if neck_angle < 155: # Was 160
-            return 'SLOUCHING'
+        # READING MODE LOGIC:
+        # If the neck is very straight (high angle), we allow more forward lean (lower torso angle).
+        # This accounts for "leaning in" to read without rounding the back.
         
-        if torso_angle < 70: # Was 75
+        if neck_angle > 165:
+            # Good neck alignment -> allow forward lean down to 60 degrees
+            min_torso_angle = 60
+        else:
+            # Curved neck -> stricter torso requirement
+            min_torso_angle = 70
+            
+        if torso_angle < min_torso_angle:
+            return 'SLOUCHING'
+            
+        # Strict neck angle check (always slouching if neck is bent)
+        if neck_angle < 155:
             return 'SLOUCHING'
         
         return 'GOOD'
