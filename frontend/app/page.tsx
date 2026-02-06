@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { SessionControl } from '@/components/SessionControl';
 import { SessionStatsDisplay } from '@/components/SessionStats';
+import { CameraView } from '@/components/CameraView';
 import { api } from '@/lib/api';
 
 export default function Home() {
@@ -42,11 +43,16 @@ export default function Home() {
         </div>
 
         {/* Main Grid */}
-        <div className="grid md:grid-cols-2 gap-6 max-w-6xl mx-auto">
+        <div className="grid md:grid-cols-2 gap-6 max-w-6xl mx-auto mb-6">
           {/* Session Control */}
-          <SessionControl />
+          <SessionControl onSessionChange={setActiveSessionId} />
 
-          {/* Session Stats */}
+          {/* Camera View */}
+          <CameraView sessionId={activeSessionId} />
+        </div>
+
+        {/* Stats */}
+        <div className="max-w-6xl mx-auto mb-6">
           <SessionStatsDisplay sessionId={activeSessionId} />
         </div>
 

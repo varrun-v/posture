@@ -3,11 +3,57 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
+from pydantic import BaseModel
 
 from app.db.session import get_db
 from app.models import database, schemas
+from app.core.posture_detector import get_detector
 
 router = APIRouter(prefix="/posture", tags=["posture"])
+
+
+class FrameAnalysisRequest(BaseModel):
+    session_id: int
+    frame: str  # base64 encoded image
+
+
+@router.post("/analyze-frame")
+async def analyze_frame(request: FrameAnalysisRequest, db: Session = Depends(get_db)):
+    """
+    Analyze a camera frame for posture detection using MediaPipe.
+    Automatically logs the result to the database.
+    """
+    # Verify session exists and is active
+    session = db.query(database.Session).filter(database.Session.id == request.session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    if session.status != "active":
+        raise HTTPException(status_code=400, detail="Session is not active")
+    
+    # Analyze frame with MediaPipe
+    detector = get_detector()
+    result = detector.analyze_posture(request.frame)
+    
+    # Log to database
+    posture_log = database.PostureLog(
+        session_id=request.session_id,
+        timestamp=datetime.utcnow(),
+        posture_status=result['posture_status'],
+        neck_angle=result.get('neck_angle'),
+        torso_angle=result.get('torso_angle'),
+        distance_score=result.get('distance_score'),
+        confidence=result.get('confidence')
+    )
+    db.add(posture_log)
+    db.commit()
+    db.refresh(posture_log)
+    
+    return {
+        **result,
+        'log_id': posture_log.id,
+        'timestamp': posture_log.timestamp
+    }
 
 
 @router.post("/log", response_model=schemas.PostureLog)
