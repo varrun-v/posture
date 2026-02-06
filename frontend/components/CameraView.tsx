@@ -1,223 +1,210 @@
 'use client';
 
 import { useRef, useEffect, useState } from 'react';
-import { api } from '@/lib/api';
 
 interface CameraViewProps {
-    sessionId: number | null;
-    onPostureUpdate?: (status: string) => void;
+  sessionId: number | null;
 }
 
-export function CameraView({ sessionId, onPostureUpdate }: CameraViewProps) {
-    const videoRef = useRef<HTMLVideoElement>(null);
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [isActive, setIsActive] = useState(false);
-    const [currentPosture, setCurrentPosture] = useState<string>('UNKNOWN');
-    const [error, setError] = useState<string | null>(null);
-    const [cameraPermission, setCameraPermission] = useState<'granted' | 'denied' | 'prompt'>('prompt');
+export function CameraView({ sessionId }: CameraViewProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const [cameraActive, setCameraActive] = useState(false);
+  const [currentPosture, setCurrentPosture] = useState<string>('WAITING');
+  const [error, setError] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
 
-    useEffect(() => {
-        if (sessionId && cameraPermission === 'granted') {
-            startCamera();
-        } else {
-            stopCamera();
-        }
+  // Start camera on mount
+  useEffect(() => {
+    startCamera();
+    return () => stopCamera();
+  }, []);
 
-        return () => stopCamera();
-    }, [sessionId, cameraPermission]);
-
-    const startCamera = async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    width: { ideal: 640 },
-                    height: { ideal: 480 },
-                    facingMode: 'user'
-                }
-            });
-
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-                setIsActive(true);
-                setError(null);
-                setCameraPermission('granted');
-
-                // Start analyzing frames
-                startFrameAnalysis();
-            }
-        } catch (err) {
-            console.error('Camera error:', err);
-            setError('Failed to access camera. Please grant camera permissions.');
-            setCameraPermission('denied');
-        }
-    };
-
-    const stopCamera = () => {
-        if (videoRef.current && videoRef.current.srcObject) {
-            const stream = videoRef.current.srcObject as MediaStream;
-            stream.getTracks().forEach(track => track.stop());
-            videoRef.current.srcObject = null;
-            setIsActive(false);
-        }
-    };
-
-    const captureFrame = (): string | null => {
-        if (!videoRef.current || !canvasRef.current) return null;
-
-        const video = videoRef.current;
-        const canvas = canvasRef.current;
-        const context = canvas.getContext('2d');
-
-        if (!context) return null;
-
-        // Set canvas size to match video
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-
-        // Draw current video frame to canvas
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        // Convert to base64
-        return canvas.toDataURL('image/jpeg', 0.8);
-    };
-
-    const startFrameAnalysis = () => {
-        const analyzeInterval = setInterval(async () => {
-            if (!sessionId || !isActive) {
-                clearInterval(analyzeInterval);
-                return;
-            }
-
-            const frame = captureFrame();
-            if (!frame) return;
-
-            try {
-                // Send frame to backend for analysis
-                const response = await fetch('http://localhost:8000/api/v1/posture/analyze-frame', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        session_id: sessionId,
-                        frame: frame
-                    })
-                });
-
-                if (response.ok) {
-                    const result = await response.json();
-                    setCurrentPosture(result.posture_status);
-                    if (onPostureUpdate) {
-                        onPostureUpdate(result.posture_status);
-                    }
-                }
-            } catch (err) {
-                console.error('Frame analysis error:', err);
-            }
-        }, 1000); // Analyze every 1 second
-
-        return () => clearInterval(analyzeInterval);
-    };
-
-    const requestCameraPermission = async () => {
-        await startCamera();
-    };
-
-    const getPostureColor = (status: string) => {
-        switch (status) {
-            case 'GOOD':
-                return 'bg-green-500';
-            case 'SLOUCHING':
-                return 'bg-yellow-500';
-            case 'TOO_CLOSE':
-                return 'bg-red-500';
-            case 'NO_PERSON':
-                return 'bg-gray-500';
-            default:
-                return 'bg-gray-400';
-        }
-    };
-
-    const getPostureMessage = (status: string) => {
-        switch (status) {
-            case 'GOOD':
-                return 'Great posture! Keep it up! 👍';
-            case 'SLOUCHING':
-                return 'Slouching detected. Sit up straight! 🪑';
-            case 'TOO_CLOSE':
-                return 'Too close to screen. Move back! 📏';
-            case 'NO_PERSON':
-                return 'No person detected 👤';
-            default:
-                return 'Analyzing...';
-        }
-    };
-
-    if (!sessionId) {
-        return (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-                <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
-                    Camera View
-                </h2>
-                <p className="text-gray-600 dark:text-gray-400">
-                    Start a monitoring session to enable camera
-                </p>
-            </div>
-        );
+  // Start/stop analysis based on session
+  useEffect(() => {
+    if (sessionId && cameraActive) {
+      startAnalysis();
+    } else {
+      stopAnalysis();
+      setCurrentPosture('WAITING');
     }
 
-    return (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
-                Camera View
-            </h2>
+    return () => stopAnalysis();
+  }, [sessionId, cameraActive]);
 
-            {error && (
-                <div className="mb-4 p-3 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 rounded">
-                    {error}
-                </div>
-            )}
+  const startCamera = async () => {
+    try {
+      console.log('Requesting camera access...');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
+      });
 
-            {cameraPermission === 'prompt' && (
-                <div className="text-center py-8">
-                    <p className="text-gray-600 dark:text-gray-400 mb-4">
-                        Camera access required for posture detection
-                    </p>
-                    <button
-                        onClick={requestCameraPermission}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-6 rounded-lg"
-                    >
-                        Enable Camera
-                    </button>
-                </div>
-            )}
+      console.log('Camera stream obtained - active:', stream.active);
 
-            {cameraPermission === 'granted' && (
-                <>
-                    <div className="relative mb-4 bg-black rounded-lg overflow-hidden">
-                        <video
-                            ref={videoRef}
-                            autoPlay
-                            playsInline
-                            muted
-                            className="w-full h-auto transform -scale-x-100"
-                        />
-                        <canvas ref={canvasRef} className="hidden" />
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        // Set active immediately
+        setCameraActive(true);
+        setError(null);
+        console.log('Camera set to active');
+      }
+    } catch (err: any) {
+      console.error('Camera error:', err);
+      setError(`Camera error: ${err.message}`);
+      setCameraActive(false);
+    }
+  };
 
-                        {/* Posture status overlay */}
-                        <div className="absolute top-4 left-4 right-4">
-                            <div className={`${getPostureColor(currentPosture)} text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2`}>
-                                <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
-                                <span className="font-semibold">{currentPosture}</span>
-                            </div>
-                        </div>
-                    </div>
+  const stopCamera = () => {
+    stopAnalysis();
+    if (videoRef.current?.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+      setCameraActive(false);
+    }
+  };
 
-                    <div className="text-center">
-                        <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                            {getPostureMessage(currentPosture)}
-                        </p>
-                    </div>
-                </>
-            )}
+  const captureFrame = (): string | null => {
+    if (!videoRef.current || !canvasRef.current) return null;
+    const video = videoRef.current;
+    if (video.readyState !== video.HAVE_ENOUGH_DATA) return null;
+
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.7);
+  };
+
+  const analyzeFrame = async () => {
+    if (!sessionId || analyzing) return;
+
+    const frame = captureFrame();
+    if (!frame) return;
+
+    setAnalyzing(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/v1/posture/analyze-frame', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, frame })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Posture:', result.posture_status);
+        setCurrentPosture(result.posture_status);
+      }
+    } catch (err) {
+      console.error('Analysis error:', err);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const startAnalysis = () => {
+    stopAnalysis();
+    console.log('Starting analysis');
+    setTimeout(() => analyzeFrame(), 1000);
+    intervalRef.current = setInterval(() => analyzeFrame(), 2000);
+  };
+
+  const stopAnalysis = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
+
+  const getPostureColor = (status: string) => {
+    const colors: Record<string, string> = {
+      GOOD: 'bg-green-500',
+      SLOUCHING: 'bg-yellow-500',
+      TOO_CLOSE: 'bg-red-500',
+      NO_PERSON: 'bg-gray-500',
+      WAITING: 'bg-blue-500'
+    };
+    return colors[status] || 'bg-gray-400';
+  };
+
+  const getPostureMessage = (status: string) => {
+    const messages: Record<string, string> = {
+      GOOD: '✅ Great posture!',
+      SLOUCHING: '⚠️ Slouching detected',
+      TOO_CLOSE: '🚫 Too close',
+      NO_PERSON: '👤 No person',
+      WAITING: sessionId ? '🔄 Analyzing...' : '⏸️ Start session'
+    };
+    return messages[status] || '...';
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+      <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
+        Live Camera
+      </h2>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
+          <p className="font-semibold">Error: {error}</p>
+          <button
+            onClick={() => { setError(null); startCamera(); }}
+            className="mt-2 px-4 py-1 bg-red-600 hover:bg-red-700 text-white rounded"
+          >
+            Retry
+          </button>
         </div>
-    );
+      )}
+
+      <div className="relative mb-4 bg-black rounded-lg overflow-hidden">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="w-full h-auto"
+          style={{ transform: 'scaleX(-1)' }}
+        />
+        <canvas ref={canvasRef} className="hidden" />
+        
+        {cameraActive && (
+          <div className="absolute top-4 left-4 right-4">
+            <div className={`${getPostureColor(currentPosture)} text-white px-4 py-3 rounded-lg shadow-lg`}>
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-lg">{currentPosture}</span>
+                <span className="text-sm opacity-90">{getPostureMessage(currentPosture)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!sessionId && cameraActive && (
+          <div className="absolute bottom-4 left-4 right-4">
+            <div className="bg-gray-900 bg-opacity-75 text-white px-4 py-2 rounded-lg text-center">
+              <p className="text-sm">Start a session to enable posture detection</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${cameraActive ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`}></div>
+          <span>Camera {cameraActive ? 'Active' : 'Inactive'}</span>
+        </div>
+        {sessionId && (
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${analyzing ? 'bg-blue-500 animate-pulse' : 'bg-gray-500'}`}></div>
+            <span>{analyzing ? 'Analyzing...' : 'Ready'}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

@@ -1,27 +1,42 @@
 """
 MediaPipe-based posture detection module.
-Analyzes pose landmarks to determine posture quality.
+Analyzes pose landmarks to determine posture quality using Tasks API.
 """
 
 import cv2
 import numpy as np
 import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
 from typing import Optional, Dict, Tuple
 import base64
+import os
 
 
 class PostureDetector:
-    """Detects and analyzes posture from camera frames using MediaPipe."""
+    """Detects and analyzes posture from camera frames using MediaPipe Tasks API."""
     
     def __init__(self):
-        self.mp_pose = mp.solutions.pose
-        self.pose = self.mp_pose.Pose(
-            static_image_mode=False,
-            model_complexity=1,
-            smooth_landmarks=True,
-            min_detection_confidence=0.5,
+        # Path to the pre-trained model
+        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        model_path = os.path.join(current_dir, 'models', 'pose_landmarker_lite.task')
+        
+        if not os.path.exists(model_path):
+            print(f"✗ MediaPipe model file not found at {model_path}")
+            # Try to download if missing (already done in setup but for robustness)
+            self.detector = None
+            return
+
+        base_options = python.BaseOptions(model_asset_path=model_path)
+        options = vision.PoseLandmarkerOptions(
+            base_options=base_options,
+            running_mode=vision.RunningMode.IMAGE,
+            num_poses=1,
+            min_pose_detection_confidence=0.5,
+            min_pose_presence_confidence=0.5,
             min_tracking_confidence=0.5
         )
+        self.detector = vision.PoseLandmarker.create_from_options(options)
         
     def decode_frame(self, base64_frame: str) -> Optional[np.ndarray]:
         """Decode base64 image to numpy array."""
@@ -61,10 +76,14 @@ class PostureDetector:
     def analyze_posture(self, frame_base64: str) -> Dict:
         """
         Analyze posture from a base64-encoded frame.
-        
-        Returns:
-            dict with posture_status, angles, confidence, etc.
         """
+        if self.detector is None:
+            return {
+                'posture_status': 'ERROR',
+                'confidence': 0.0,
+                'error': 'MediaPipe detector not initialized'
+            }
+
         # Decode frame
         frame = self.decode_frame(frame_base64)
         if frame is None:
@@ -77,39 +96,39 @@ class PostureDetector:
         # Convert BGR to RGB
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
-        # Process with MediaPipe
-        results = self.pose.process(rgb_frame)
+        # Convert to MediaPipe Image object
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
         
-        if not results.pose_landmarks:
+        # Process with MediaPipe Landmarker
+        detection_result = self.detector.detect(mp_image)
+        
+        if not detection_result.pose_landmarks:
             return {
                 'posture_status': 'NO_PERSON',
                 'confidence': 0.0,
                 'message': 'No person detected in frame'
             }
         
-        # Extract key landmarks
-        landmarks = results.pose_landmarks.landmark
+        # Get the first pose detected
+        landmarks = detection_result.pose_landmarks[0]
         
-        # Get coordinates (normalized 0-1)
+        # Landmark indices (legacy mapping still applies)
+        # 0: nose, 11: left_shoulder, 12: right_shoulder, 23: left_hip, 24: right_hip, 7: left_ear
+        
+        # Extract coordinates
         # Nose
-        nose = (landmarks[self.mp_pose.PoseLandmark.NOSE].x,
-                landmarks[self.mp_pose.PoseLandmark.NOSE].y)
+        nose = (landmarks[0].x, landmarks[0].y)
         
         # Shoulders
-        left_shoulder = (landmarks[self.mp_pose.PoseLandmark.LEFT_SHOULDER].x,
-                        landmarks[self.mp_pose.PoseLandmark.LEFT_SHOULDER].y)
-        right_shoulder = (landmarks[self.mp_pose.PoseLandmark.RIGHT_SHOULDER].x,
-                         landmarks[self.mp_pose.PoseLandmark.RIGHT_SHOULDER].y)
+        left_shoulder = (landmarks[11].x, landmarks[11].y)
+        right_shoulder = (landmarks[12].x, landmarks[12].y)
         
         # Hips
-        left_hip = (landmarks[self.mp_pose.PoseLandmark.LEFT_HIP].x,
-                   landmarks[self.mp_pose.PoseLandmark.LEFT_HIP].y)
-        right_hip = (landmarks[self.mp_pose.PoseLandmark.RIGHT_HIP].x,
-                    landmarks[self.mp_pose.PoseLandmark.RIGHT_HIP].y)
+        left_hip = (landmarks[23].x, landmarks[23].y)
+        right_hip = (landmarks[24].x, landmarks[24].y)
         
         # Ears (for head tilt)
-        left_ear = (landmarks[self.mp_pose.PoseLandmark.LEFT_EAR].x,
-                   landmarks[self.mp_pose.PoseLandmark.LEFT_EAR].y)
+        left_ear = (landmarks[7].x, landmarks[7].y)
         
         # Calculate midpoints
         shoulder_mid = ((left_shoulder[0] + right_shoulder[0]) / 2,
@@ -122,57 +141,45 @@ class PostureDetector:
         neck_angle = self.calculate_angle(left_ear, shoulder_mid, hip_mid)
         
         # Torso angle: shoulder -> hip -> vertical reference
-        # Create a vertical reference point below hip
         vertical_ref = (hip_mid[0], hip_mid[1] + 0.2)
         torso_angle = self.calculate_angle(shoulder_mid, hip_mid, vertical_ref)
         
         # Estimate distance from camera (using shoulder width as reference)
         shoulder_width = abs(left_shoulder[0] - right_shoulder[0])
-        # Normalize: typical shoulder width in frame should be ~0.15-0.25
         distance_score = shoulder_width / 0.20  # 1.0 is ideal
         
         # Get average confidence
-        confidence = np.mean([lm.visibility for lm in landmarks])
+        confidence = np.mean([lm.presence for lm in landmarks])
         
         # Determine posture status
         posture_status = self._classify_posture(neck_angle, torso_angle, distance_score)
         
         return {
             'posture_status': posture_status,
-            'neck_angle': float(180 - neck_angle),  # Convert to forward lean angle
-            'torso_angle': float(abs(90 - torso_angle)),  # Deviation from vertical
+            'neck_angle': float(180 - neck_angle),
+            'torso_angle': float(abs(90 - torso_angle)),
             'distance_score': float(distance_score),
             'confidence': float(confidence),
             'shoulder_width': float(shoulder_width)
         }
     
     def _classify_posture(self, neck_angle: float, torso_angle: float, distance_score: float) -> str:
-        """
-        Classify posture based on angles and distance.
-        
-        Thresholds:
-        - Good posture: neck ~180°, torso ~90°, distance 0.75-1.25
-        - Slouching: neck < 160° or torso < 75°
-        - Too close: distance > 1.3
-        """
-        # Check distance first
+        """Classify posture based on angles and distance."""
         if distance_score > 1.3:
             return 'TOO_CLOSE'
         
-        # Check neck forward lean (180° is straight, lower means leaning forward)
         if neck_angle < 160:
             return 'SLOUCHING'
         
-        # Check torso alignment (90° is vertical, lower means slouching)
         if torso_angle < 75:
             return 'SLOUCHING'
         
         return 'GOOD'
     
     def __del__(self):
-        """Cleanup MediaPipe resources."""
-        if hasattr(self, 'pose'):
-            self.pose.close()
+        """Cleanup detector."""
+        if hasattr(self, 'detector') and self.detector:
+            self.detector.close()
 
 
 # Global instance

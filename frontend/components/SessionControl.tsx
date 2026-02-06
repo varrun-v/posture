@@ -4,7 +4,11 @@ import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import type { Session } from '@/lib/types';
 
-export function SessionControl() {
+interface SessionControlProps {
+    onSessionChange?: (sessionId: number | null) => void;
+}
+
+export function SessionControl({ onSessionChange }: SessionControlProps) {
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -18,6 +22,7 @@ export function SessionControl() {
         try {
             const activeSession = await api.getActiveSession();
             setSession(activeSession);
+            if (onSessionChange) onSessionChange(activeSession?.id || null);
         } catch (err) {
             console.error('Failed to check active session:', err);
         }
@@ -29,6 +34,7 @@ export function SessionControl() {
         try {
             const newSession = await api.startSession();
             setSession(newSession);
+            if (onSessionChange) onSessionChange(newSession.id);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to start session');
         } finally {
@@ -44,6 +50,7 @@ export function SessionControl() {
         try {
             await api.stopSession(session.id);
             setSession(null);
+            if (onSessionChange) onSessionChange(null);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to stop session');
         } finally {
